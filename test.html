@@ -1,12 +1,37 @@
 <!doctype html>
 <html>
   <head>
+    <script type="text/javascript" src="language.js"></script>
+    <script type="text/javascript" src="Event.js"></script>
     <script type="text/javascript">
       //globals
       var audio_context = null;
       var audio_node = null;
       var sine = 0;
       //engine junk
+      var metronome = function(){
+        var that = {},
+        running = false,
+        tempo = 250, // ms
+        interval = null;
+        var setTempo = function(new_tempo)  { tempo = new_tempo };
+        var getTempo = function()           { return tempo; };
+        var start = function() {
+          interval = setInterval(tick, tempo);
+        };
+        var stop = function() {
+          clearInterval(interval);
+          interval = null;
+        };
+        var tick = function() {
+          MODELER.Event.dispatch('metronome:tick');
+        }
+        that.setTempo = setTempo;
+        that.getTempo = getTempo;
+        that.start = start;
+        that.stop = stop;
+        return that;
+      }();
       var notes = function(){
         var that = {},
         base_octave= 4, // start at middle c
@@ -83,49 +108,78 @@
         }
       };
       //driver junk
-      function start(){
-        audio_context = getAudioContext();
-        audio_node = getAudioNode(audio_context, 2048);
-        playNote(440, 250);
-      };
       function startPlay(){
         audio_node.connect(audio_context.destination);
       };
-      function stopPlay(){
-        audio_node.disconnect();
-      };
-      function playNote(freq, time){
-        pause_time = 1000; // 100 ms pause between notes
-        controller.hz = freq;
-        setInterval(function(){
-          startPlay();
-          setInterval(stopPlay, time);
-        }, pause_time);
-      };
       // experimental junk
-      var note_array = [];
       function nextNote(){
         if (note_array.length > 0) {
         var note = note_array.pop();
           playNoteExperimental(note.freq, note.time);
+        } else {
+          audio_node.disconnect();
         }
       };
-      function playNoteExperimental(freq, time){
+      var last_note_played = 0;
+      function playMeasure(notes, tempo) {
+        var time_per_note = tempo / notes.length - 10; //30 ms buffer
+        MODELER.Event.listen('note:played', function(){
+          if (notes.length > 0) {
+            var note = notes.pop();
+            var wait_time = time_per_note - (new Date().getTime() - last_note_played);
+            setTimeout(function(){
+              playNoteExperimental(note);
+            }, wait_time);
+          } else {
+            MODELER.Event.stopListening('note:played', this);
+          }
+        });
+        var note = notes.pop();
+        playNoteExperimental(note);
+      };
+      function playNoteExperimental(freq){
+        // notes play for a constant time
+        // gap between notes varies based on notes per measure
+        // some notes may or may not have a gap between them
+        // concept of compound note, which denotes notes have no gap between them
+        // but still play for the set time
+        // gap is calculated from 
         controller.hz = freq;
         startPlay();
-        setInterval(stopPlayExperimental, time);
+        var note_time = 150; //maybe make this some kind of function of the tempo? or instrument?
+        last_note_played = new Date().getTime();
+        setTimeout(stopPlayExperimental, note_time);
       };
       function stopPlayExperimental(){
-        audio_node.disconnect();
-        nextNote();
+        controller.hz = 0;
+        // dispatch event when
+        MODELER.Event.dispatch('note:played');
       };
       function startExperimental(){
+        var music = [
+          [notes.C, notes.C], [notes.G, notes.G], [notes.A, notes.A], [notes.G, 0], 
+          [notes.F, notes.F], [notes.E, notes.E], [notes.D, notes.D], [notes.C, 0],
+          [notes.G, notes.G], [notes.F, notes.F], [notes.E, notes.E], [notes.D, 0],
+          [notes.G, notes.G], [notes.F, notes.F], [notes.E, notes.E], [notes.D, 0],
+          [notes.C, notes.C], [notes.G, notes.G], [notes.A, notes.A], [notes.G, 0], 
+          [notes.F, notes.F], [notes.E, notes.E], [notes.D, notes.D], [notes.C, 0]
+        ];
+        music.reverse();
+        MODELER.Event.listen('metronome:tick', function(){
+          var tempo = metronome.getTempo();
+          // play the next measure of music to the tempo
+          // if we have 4 notes, play each note at tempo/4 ms
+          if (music.length > 0) {
+            var measure = music.pop();
+            measure.reverse();
+            playMeasure(measure, tempo);
+          }
+        });
+        MODELER.Event.listen('metronome:tick', function(){ console.log('tick'); });
         audio_context = getAudioContext();
         audio_node = getAudioNode(audio_context, 2048);
-        note_array = [];
-        note_array.push({ freq: notes.C, time: 150 });
-        note_array.push({ freq: notes.A, time: 150 });
-        nextNote();
+        metronome.setTempo(1000);
+        metronome.start();
       };
       // run it
       //document.addEventListener("DOMContentLoaded", start);
