@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+  <head>
+    <script type="text/javascript">
+      //globals
+      var audio_context = null;
+      var audio_node = null;
+      var sine = 0;
+      //engine junk
+      var notes = function(){
+        var that = {},
+        base_octave= 4, // start at middle c
+        current_octave = 4,
+        note_defs = { // frequencies at middle c
+          C: 261.63,
+          CSharp: 277.18,
+          DFlat: 277.18,
+          D: 293.66,
+          DSharp: 311.13,
+          EFlat: 311.13,
+          E: 329.63,
+          F: 349.23,
+          FSharp: 369.99,
+          GFlat: 369.99,
+          G: 392.00,
+          GSharp: 415.30,
+          AFlat: 415.30,
+          A: 440.00,
+          ASharp: 466.16,
+          BFlat: 466.16,
+          B: 493.88
+        };
+        setOctave = function(i) {
+          if (i < 1 || i > 8) { throw "Invalid octave"; }
+          else { current_octave = i; }
+          calculateNotes();
+        },
+        upOctave = function(){
+          if (current_octave < 8) { current_octave++; } 
+          calculateNotes();
+        },
+        downOctave = function(){
+          if (current_octave > 1) { current_octave--; }
+          calculateNotes();
+        },
+        getNote = function(freq) {
+          octave_delta = current_octave - base_octave;
+          octave_multiplier = Math.pow(2, octave_delta);
+          return freq * octave_multiplier;
+        };
+        calculateNotes = function() {
+          for (var key in note_defs) {
+            that[key] = getNote(note_defs[key]);
+          };
+        };
+        that.setOctave = setOctave;
+        that.downOctave = downOctave;
+        that.upOctave = upOctave;
+        calculateNotes();
+        return that;
+      }();
+      var controller = {
+        hz: 440
+      }
+      function getAudioContext() {
+        return new webkitAudioContext();
+      };
+      function getAudioNode(context, buffer_size, input, output) {
+        input = input || 1;
+        output = output || 1;
+        var node = context.createJavaScriptNode(buffer_size, input, output);
+        node.onaudioprocess = handleAudioEvent;
+        return node;
+      };
+      function handleAudioEvent(event) {
+        var buffer = event.outputBuffer,
+        data = buffer.getChannelData(0),
+        data_length = data.length; // same as node buffer size
+
+        var sample_frequency = 2 * Math.PI * controller.hz / buffer.sampleRate;
+        for (var i = 0; i < data_length; i++) {
+          data[i] = Math.sin(sample_frequency * sine++);
+        }
+      };
+      //driver junk
+      function start(){
+        audio_context = getAudioContext();
+        audio_node = getAudioNode(audio_context, 2048);
+        playNote(440, 250);
+      };
+      function startPlay(){
+        audio_node.connect(audio_context.destination);
+      };
+      function stopPlay(){
+        audio_node.disconnect();
+      };
+      function playNote(freq, time){
+        pause_time = 1000; // 100 ms pause between notes
+        controller.hz = freq;
+        setInterval(function(){
+          startPlay();
+          setInterval(stopPlay, time);
+        }, pause_time);
+      };
+      // experimental junk
+      var note_array = [];
+      function nextNote(){
+        if (note_array.length > 0) {
+        var note = note_array.pop();
+          playNoteExperimental(note.freq, note.time);
+        }
+      };
+      function playNoteExperimental(freq, time){
+        controller.hz = freq;
+        startPlay();
+        setInterval(stopPlayExperimental, time);
+      };
+      function stopPlayExperimental(){
+        audio_node.disconnect();
+        nextNote();
+      };
+      function startExperimental(){
+        audio_context = getAudioContext();
+        audio_node = getAudioNode(audio_context, 2048);
+        note_array = [];
+        note_array.push({ freq: notes.C, time: 150 });
+        note_array.push({ freq: notes.A, time: 150 });
+        nextNote();
+      };
+      // run it
+      //document.addEventListener("DOMContentLoaded", start);
+      document.addEventListener("DOMContentLoaded", startExperimental);
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
