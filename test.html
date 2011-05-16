@@ -137,7 +137,7 @@
         var note = notes.pop();
         playNoteExperimental(note);
       };
-      function playNoteExperimental(freq){
+      function playNoteExperimental(freq, note_time){
         // notes play for a constant time
         // gap between notes varies based on notes per measure
         // some notes may or may not have a gap between them
@@ -146,7 +146,7 @@
         // gap is calculated from 
         controller.hz = freq;
         startPlay();
-        var note_time = 150; //maybe make this some kind of function of the tempo? or instrument?
+        var note_time = 250; //maybe make this some kind of function of the tempo? or instrument?
         last_note_played = new Date().getTime();
         setTimeout(stopPlayExperimental, note_time);
       };
